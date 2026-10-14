@@ -1,4 +1,4 @@
-/*! Gym Republik — Design your gym form v1.0.0 */
+/*! Gym Republik — Design your gym form v1.0.4 */
 (function () {
   'use strict';
   var SCRIPT = document.currentScript;
@@ -76,7 +76,7 @@
     '.grf-err{font-size:14px;color:#b3261e}.grf-err:empty{display:none}',
     '.grf-hp{position:absolute!important;left:-9999px!important;width:1px;height:1px;opacity:0}',
     '.grf-send-err{grid-column:1/-1;font-size:15px;color:#b3261e}.grf-send-err:empty{display:none}',
-    '.grf-submit{grid-column:1/-1;min-width:0;width:100%;padding:20px 22px}',
+    '.grf-submit{grid-column:1/-1;justify-self:start;width:auto;min-width:280px;gap:48px;padding:20px 22px}.grf-nav.is-final{border-top:0;padding-top:0}',
     '.grf-small{grid-column:1/-1;font-size:13px;line-height:1.5;color:rgba(15,17,48,.6)}',
     '.grf-done{gap:28px;border-top:2px solid var(--n);padding-top:24px}.grf-done .grf-note{max-width:44ch;font-size:clamp(18px,1.4vw,21px)}',
     '.grf-done-btns{display:flex;gap:12px;flex-wrap:wrap}.grf-done-btns .grf-btn{gap:40px;min-width:0}',
@@ -101,6 +101,8 @@
       '.grf-opts[data-n="3"] .grf-opt{min-height:0;flex-direction:row;align-items:center;gap:16px;padding:16px 18px}' +
       '.grf-opts[data-n="3"] .grf-opt-top{order:3;margin-left:auto}.grf-opts[data-n="3"] .grf-letter{display:none}' +
       '.grf-opts[data-n="3"] .grf-vis{margin-top:0;height:44px;flex:none}.grf-opts[data-n="3"] .grf-lab{order:2}.grf-opts[data-n="3"] .grf-sub:empty{display:none}}'
+,
+    '@media (max-width:640px){.grf-submit{justify-self:stretch;width:100%;min-width:0}}'
   ].join('\n');
 
   var I = {
@@ -215,6 +217,7 @@
     if (S.done) { E.nav.hidden = true; return; }
     E.nav.hidden = false;
     var i = cur(), id = flow()[i], q = D[id], showNext = q && (q.multi || !AUTO);
+    E.nav.classList.toggle('is-final', !q);
     E.nav.innerHTML = '<button type="button" class="grf-back" aria-label="Back"' + (i === 0 ? ' disabled' : '') + '><span>←</span><span class="grf-tx">Back</span></button>' +
       (showNext ? '<button type="button" class="grf-btn grf-btn-navy grf-next" aria-label="Continue"' + (has(id) ? '' : ' disabled') + '><span class="grf-fill"></span><span class="grf-tx">Continue</span><span>→</span></button>' : '');
     E.nav.querySelector('.grf-back').onclick = function () { go(cur() - 1); };
