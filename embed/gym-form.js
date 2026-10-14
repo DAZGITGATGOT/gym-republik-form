@@ -1,4 +1,4 @@
-/*! Gym Republik — Design your gym form v1.0.4 */
+/*! Gym Republik — Design your gym form v1.0.5 */
 (function () {
   'use strict';
   var SCRIPT = document.currentScript;
@@ -100,7 +100,7 @@
       '.grf-opts[data-n="3"]{grid-template-columns:minmax(0,1fr)!important}' +
       '.grf-opts[data-n="3"] .grf-opt{min-height:0;flex-direction:row;align-items:center;gap:16px;padding:16px 18px}' +
       '.grf-opts[data-n="3"] .grf-opt-top{order:3;margin-left:auto}.grf-opts[data-n="3"] .grf-letter{display:none}' +
-      '.grf-opts[data-n="3"] .grf-vis{margin-top:0;height:44px;flex:none}.grf-opts[data-n="3"] .grf-lab{order:2}.grf-opts[data-n="3"] .grf-sub:empty{display:none}}'
+      '.grf-opts[data-n="3"] .grf-vis{margin-top:0;height:44px;flex:none;width:auto;container-type:normal}.grf-opts[data-n="3"] .grf-lab{order:2}.grf-opts[data-n="3"] .grf-sub:empty{display:none}}'
 ,
     '@media (max-width:640px){.grf-submit{justify-self:stretch;width:100%;min-width:0}}'
   ].join('\n');
@@ -197,10 +197,10 @@
         '<p class="grf-note">Your brief is with the team. We\'ll be in touch shortly with your free quote and an example layout to match.</p>' +
         '<div class="grf-done-btns"><a class="grf-btn grf-btn-navy" href="' + esc(HOME) + '"><span class="grf-fill"></span><span>Back to home</span><span>→</span></a><button type="button" class="grf-ghost" data-restart>Start again</button></div></div>';
     } else if (q) {
-      h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">' + esc(q.title) + '</h1>' + (q.note ? '<p class="grf-note">' + esc(q.note) + '</p>' : '') + '<span class="grf-hint">' + esc(q.hint) + '</span></div>' +
+      h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">' + esc(q.title) + '</h1>' + (q.note ? '<p class="grf-note">' + esc(q.note) + '</p>' : '') + (q.multi ? '<span class="grf-hint">' + esc(q.hint) + '</span>' : '') + '</div>' +
         '<div class="grf-opts" data-n="' + q.opts.length + '" style="--cols:' + q.opts.length + '">' + q.opts.map(function (o, j) { return optHTML(q, id, o, j); }).join('') + '</div></div>';
     } else {
-      h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">Where should we send it?</h1><p class="grf-note">We\'ll be in touch to organise a free quote, with an example layout closest to your brief.</p></div>' +
+      h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">Where should we send it?</h1></div>' +
         '<form class="grf-form" novalidate>' + F.map(function (f) {
           return '<label class="grf-field" data-k="' + f[0] + '"><span class="grf-flab"><span class="grf-dash"></span><span>' + f[1] + '</span><span class="grf-ok"></span></span>' +
             '<input type="' + f[2] + '" name="' + f[0] + '" autocomplete="' + f[3] + '" placeholder="' + f[4] + '" value="' + esc(S.f[f[0]] || '') + '"' + (f[2] === 'tel' ? ' inputmode="tel"' : '') + '><span class="grf-err"></span></label>';
