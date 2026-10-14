@@ -27,7 +27,7 @@
     '.grf-body{flex:1;display:flex;flex-direction:column}',
     '.grf-q{display:flex;flex-direction:column;gap:clamp(24px,3vw,36px);flex:1;min-height:440px}',
     '.grf-head{display:flex;flex-direction:column;gap:16px;border-top:2px solid var(--n);padding-top:24px}',
-    '.grf-h{margin:0;font-weight:800;font-size:clamp(32px,4.4vw,68px);line-height:.92;letter-spacing:-.045em;text-wrap:balance;max-width:18ch;color:var(--n)}',
+    '.grf-h{margin:0;font-family:inherit;text-transform:none;font-weight:800;font-size:clamp(32px,4.4vw,68px);line-height:.92;letter-spacing:-.045em;text-wrap:balance;max-width:18ch;color:var(--n)}',
     '.grf-h-xl{font-size:clamp(40px,6vw,96px);line-height:.88;letter-spacing:-.05em;text-transform:uppercase;max-width:none}',
     '.grf-note{margin:0;font-size:18px;line-height:1.5;max-width:52ch;text-wrap:pretty}',
     '.grf-hint{color:var(--t)}',
@@ -42,7 +42,7 @@
     '.grf-opt.is-multi .grf-mark,.grf-opt.is-on .grf-mark{opacity:1}.grf-opt.is-on .grf-mark{background:var(--t)}',
     '.grf-vis{display:flex;align-items:center;height:52px;margin-top:auto}',
     '.grf-ico{display:block;width:44px;height:44px}.grf-ico svg{display:block}',
-    '.grf-big{font-weight:800;font-size:clamp(32px,3.4vw,52px);line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}',
+    '.grf-vis{container-type:inline-size;width:100%;min-width:0}.grf-big{font-weight:800;font-size:clamp(24px,3.4vw,52px);font-size:min(clamp(24px,3.4vw,52px),19cqi);line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}',
     '.grf-lab{display:flex;flex-direction:column;gap:4px}',
     '.grf-lab-t{font-size:clamp(17px,1.4vw,20px);font-weight:600;line-height:1.15;letter-spacing:-.01em}',
     '.grf-sub{font-size:14px;line-height:1.3;min-height:1.3em;opacity:.7}',
@@ -191,14 +191,14 @@
   function renderBody() {
     var id = flow()[cur()], q = D[id], h;
     if (S.done) {
-      h = '<div class="grf-q grf-done"><span class="grf-hint">Brief received</span><h2 class="grf-h grf-h-xl">Thanks, ' + esc((S.f.first || '').trim() || 'there') + '.</h2>' +
+      h = '<div class="grf-q grf-done"><span class="grf-hint">Brief received</span><h1 class="grf-h grf-h-xl">Thanks, ' + esc((S.f.first || '').trim() || 'there') + '.</h1>' +
         '<p class="grf-note">Your brief is with the team. We\'ll be in touch shortly with your free quote and an example layout to match.</p>' +
         '<div class="grf-done-btns"><a class="grf-btn grf-btn-navy" href="' + esc(HOME) + '"><span class="grf-fill"></span><span>Back to home</span><span>→</span></a><button type="button" class="grf-ghost" data-restart>Start again</button></div></div>';
     } else if (q) {
-      h = '<div class="grf-q"><div class="grf-head"><h2 class="grf-h">' + esc(q.title) + '</h2>' + (q.note ? '<p class="grf-note">' + esc(q.note) + '</p>' : '') + '<span class="grf-hint">' + esc(q.hint) + '</span></div>' +
+      h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">' + esc(q.title) + '</h1>' + (q.note ? '<p class="grf-note">' + esc(q.note) + '</p>' : '') + '<span class="grf-hint">' + esc(q.hint) + '</span></div>' +
         '<div class="grf-opts" data-n="' + q.opts.length + '" style="--cols:' + q.opts.length + '">' + q.opts.map(function (o, j) { return optHTML(q, id, o, j); }).join('') + '</div></div>';
     } else {
-      h = '<div class="grf-q"><div class="grf-head"><h2 class="grf-h">Where should we send it?</h2><p class="grf-note">We\'ll be in touch to organise a free quote, with an example layout closest to your brief.</p></div>' +
+      h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">Where should we send it?</h1><p class="grf-note">We\'ll be in touch to organise a free quote, with an example layout closest to your brief.</p></div>' +
         '<form class="grf-form" novalidate>' + F.map(function (f) {
           return '<label class="grf-field" data-k="' + f[0] + '"><span class="grf-flab"><span class="grf-dash"></span><span>' + f[1] + '</span><span class="grf-ok"></span></span>' +
             '<input type="' + f[2] + '" name="' + f[0] + '" autocomplete="' + f[3] + '" placeholder="' + f[4] + '" value="' + esc(S.f[f[0]] || '') + '"' + (f[2] === 'tel' ? ' inputmode="tel"' : '') + '><span class="grf-err"></span></label>';
