@@ -1,4 +1,4 @@
-/*! Gym Republik — Design your gym form v1.0.6 */
+/*! Gym Republik — Design your gym form v1.0.7 */
 (function () {
   'use strict';
   var SCRIPT = document.currentScript;
@@ -163,7 +163,7 @@
   function fmtPhone(d) { return d.indexOf('07') === 0 ? d.slice(0, 5) + ' ' + d.slice(5) : d.slice(0, 4) + ' ' + d.slice(4, 7) + ' ' + d.slice(7); }
   function flow() {
     var h = S.a.help || [];
-    return ['where', 'who', 'help'].concat(h.indexOf('Equipment') > -1 ? ['equip'] : [], h.indexOf('Flooring') > -1 ? ['floor'] : [], h.indexOf('Mirrors') > -1 ? ['mirror'] : [], ['when', 'budget', 'contact']);
+    return ['where', 'who', 'help'].concat(h.indexOf('Equipment') > -1 ? ['equip'] : [], h.indexOf('Flooring') > -1 ? ['floor'] : [], h.indexOf('Mirrors') > -1 ? ['mirror'] : [], ['when'].concat(h.indexOf('Equipment') > -1 ? ['budget'] : []).concat(['contact']));
   }
   function cur() { return Math.min(S.i, flow().length - 1); }
   function has(k) { var v = S.a[k]; return Array.isArray(v) ? v.length > 0 : !!v; }
@@ -366,7 +366,7 @@
       gym_equipment_focus: h.indexOf('Equipment') > -1 ? (a.equip || '') : '',
       gym_flooring: h.indexOf('Flooring') > -1 ? (a.floor || '') : '',
       gym_mirrors: h.indexOf('Mirrors') > -1 ? (a.mirror || '') : '',
-      gym_start: a.when || '', gym_budget: a.budget || '',
+      gym_start: a.when || '', gym_budget: h.indexOf('Equipment') > -1 ? (a.budget || '') : '',
       utm_source: attr.utm_source || '', utm_medium: attr.utm_medium || '', utm_campaign: attr.utm_campaign || '', gclid: attr.gclid || '',
       landing_page: attr.landing_page || location.pathname,
       hp: (form.querySelector('.grf-hp') || {}).value || '', t: Date.now() - t0
@@ -376,7 +376,7 @@
     fetch(EP, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || 'Failed'); }); })
       .then(function () {
-        track('generate_lead', { gym_space: a.where, gym_budget: a.budget, value: MID[a.budget] || 0, currency: 'GBP' });
+        var bud = (a.help || []).indexOf('Equipment') > -1 ? a.budget : ''; track('generate_lead', { gym_space: a.where, gym_budget: bud || 'n/a', value: MID[bud] || 0, currency: 'GBP' });
         S.sending = false;
         transition(function () { S.done = true; });
       })
