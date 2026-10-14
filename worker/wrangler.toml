@@ -1,0 +1,10 @@
+name = "gym-republik-submit"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+ALLOWED_ORIGINS = "https://www.gymrepublik.co.uk,https://gymrepublik.co.uk,https://gym-republik.webflow.io"

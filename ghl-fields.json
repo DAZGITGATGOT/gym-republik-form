@@ -1,0 +1,18 @@
+{
+  "utm_source": {
+    "id": "C3S0qJvPQDp3FsQ9SzGe",
+    "fieldKey": "contact.utm_source"
+  },
+  "utm_medium": {
+    "id": "yJLVMtb880PNWtKTXpW1",
+    "fieldKey": "contact.utm_medium"
+  },
+  "utm_campaign": {
+    "id": "WjyyRcZkw8SGi0GBkpyx",
+    "fieldKey": "contact.utm_campaign"
+  },
+  "landing_page": {
+    "id": "eZoWiVsuY6Y5pJpozXVj",
+    "fieldKey": "contact.landing_page"
+  }
+}
