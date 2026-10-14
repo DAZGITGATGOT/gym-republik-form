@@ -1,4 +1,4 @@
-/*! Gym Republik — Design your gym form v1.0.5 */
+/*! Gym Republik — Design your gym form v1.0.6 */
 (function () {
   'use strict';
   var SCRIPT = document.currentScript;
@@ -103,6 +103,10 @@
       '.grf-opts[data-n="3"] .grf-vis{margin-top:0;height:44px;flex:none;width:auto;container-type:normal}.grf-opts[data-n="3"] .grf-lab{order:2}.grf-opts[data-n="3"] .grf-sub:empty{display:none}}'
 ,
     '@media (max-width:640px){.grf-submit{justify-self:stretch;width:100%;min-width:0}}'
+,
+    '.grf-field input:-webkit-autofill,.grf-field input:-webkit-autofill:hover,.grf-field input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px var(--bg) inset;box-shadow:0 0 0 1000px var(--bg) inset;-webkit-text-fill-color:var(--n);caret-color:var(--t);transition:background-color 99999s ease 0s;animation-name:grfAutofill}',
+    '.grf-field input:autofill{background:var(--bg)}',
+    '@keyframes grfAutofill{from{opacity:1}to{opacity:1}}'
   ].join('\n');
 
   var I = {
@@ -138,7 +142,7 @@
     ['first', 'First name', 'text', 'given-name', 'Jane'],
     ['last', 'Last name', 'text', 'family-name', 'Smith'],
     ['phone', 'Phone', 'tel', 'tel', '07700 900000'],
-    ['phone2', 'Confirm phone', 'tel', 'off', 'Type it again'],
+    ['phone2', 'Confirm phone', 'tel', 'nope', 'Type it again'],
     ['email', 'Email', 'email', 'email', 'you@example.com'],
     ['postcode', 'Postcode', 'text', 'postal-code', 'M1 1AA']
   ];
@@ -203,7 +207,7 @@
       h = '<div class="grf-q"><div class="grf-head"><h1 class="grf-h">Where should we send it?</h1></div>' +
         '<form class="grf-form" novalidate>' + F.map(function (f) {
           return '<label class="grf-field" data-k="' + f[0] + '"><span class="grf-flab"><span class="grf-dash"></span><span>' + f[1] + '</span><span class="grf-ok"></span></span>' +
-            '<input type="' + f[2] + '" name="' + f[0] + '" autocomplete="' + f[3] + '" placeholder="' + f[4] + '" value="' + esc(S.f[f[0]] || '') + '"' + (f[2] === 'tel' ? ' inputmode="tel"' : '') + '><span class="grf-err"></span></label>';
+            '<input type="' + f[2] + '" name="' + (f[0] === 'phone2' ? 'grf-verify-' + Math.random().toString(36).slice(2, 7) : f[0]) + '"' + (f[0] === 'phone2' ? ' data-lpignore="true" data-1p-ignore data-form-type="other"' : '') + ' autocomplete="' + f[3] + '" placeholder="' + f[4] + '" value="' + esc(S.f[f[0]] || '') + '"' + (f[2] === 'tel' ? ' inputmode="tel"' : '') + '><span class="grf-err"></span></label>';
         }).join('') +
         '<input class="grf-hp" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">' +
         '<span class="grf-send-err" role="alert"></span>' +
@@ -329,6 +333,9 @@
       if (k === 'phone2') {
         var block = function (e) { e.preventDefault(); setErr('phone2', 'Please type your number again'); };
         inp.addEventListener('paste', block); inp.addEventListener('drop', block);
+        var wipe = function () { inp.value = ''; S.f.phone2 = ''; okLabels(); setErr('phone2', 'Please type your number again'); };
+        inp.addEventListener('input', function (e) { if (!e.inputType || e.inputType === 'insertReplacementText' || e.inputType === 'insertFromPaste') wipe(); });
+        inp.addEventListener('animationstart', function (e) { if (e.animationName === 'grfAutofill') wipe(); });
       }
     });
     okLabels();
