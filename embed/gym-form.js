@@ -1,4 +1,4 @@
-/*! Gym Republik — Design your gym form v1.0.7 */
+/*! Gym Republik — Design your gym form v1.0.9 */
 (function () {
   'use strict';
   var SCRIPT = document.currentScript;
@@ -14,7 +14,7 @@
     '.grf{--n:#0f1130;--t:#277682;--t4:#7fbcc4;--bg:#f9f9f7;--cr:#f3eee7;display:grid;grid-template-columns:minmax(0,1fr) clamp(260px,24vw,340px);background:var(--bg);color:var(--n);font-family:inherit;min-height:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}',
     '.grf *,.grf *::before,.grf *::after{box-sizing:border-box}',
     '.grf button{font-family:inherit}',
-    '.grf-main{padding:0 clamp(24px,3.4vw,48px) clamp(24px,3.4vw,48px);display:flex;flex-direction:column;gap:clamp(20px,2.4vw,32px);min-width:0}',
+    '.grf-main{padding:0 clamp(24px,3.4vw,48px) clamp(24px,3.4vw,48px);display:flex;flex-direction:column;gap:clamp(20px,2.4vw,32px);min-width:0;align-self:start}',
     '.grf-top{display:flex;flex-direction:column;gap:16px}',
     '.grf-meta,.grf-hint,.grf-flab,.grf-back,.grf-brief-h,.grf-small-caps{font-size:12px;font-weight:600;letter-spacing:.24em;text-transform:uppercase}',
     '.grf-meta{display:flex;justify-content:space-between;gap:16px}',
