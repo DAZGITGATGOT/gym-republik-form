@@ -2,6 +2,7 @@
  * Gym Republik — /submit Worker (Phase 1, no OTP)
  *
  * POST /submit → validate → GHL contact upsert + opportunity → { ok: true }
+ * Budget is optional unless Equipment is in gym_scope.
  */
 
 export interface Env {
