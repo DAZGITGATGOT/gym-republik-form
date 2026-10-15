@@ -174,21 +174,33 @@ export default {
 
     // Validate option values
     if (!VALID.gym_space.includes(gymSpace as any))
-      return json({ ok: false, error: "Invalid gym_space" }, 422, cors);
+      return json({ ok: false, error: "invalid_gym_space" }, 422, cors);
     if (!VALID.gym_users.includes(gymUsers as any))
-      return json({ ok: false, error: "Invalid gym_users" }, 422, cors);
+      return json({ ok: false, error: "invalid_gym_users" }, 422, cors);
     if (gymScope.length === 0 || !gymScope.every((s) => VALID.gym_scope.includes(s as any)))
-      return json({ ok: false, error: "Invalid gym_scope" }, 422, cors);
-    if (gymScope.includes("Equipment") && !VALID.gym_equipment_focus.includes(gymEquipFocus as any))
-      return json({ ok: false, error: "Invalid gym_equipment_focus" }, 422, cors);
-    if (gymScope.includes("Flooring") && !VALID.gym_flooring.includes(gymFlooring as any))
-      return json({ ok: false, error: "Invalid gym_flooring" }, 422, cors);
-    if (gymScope.includes("Mirrors") && !VALID.gym_mirrors.includes(gymMirrors as any))
-      return json({ ok: false, error: "Invalid gym_mirrors" }, 422, cors);
+      return json({ ok: false, error: "invalid_gym_scope" }, 422, cors);
     if (!VALID.gym_start.includes(gymStart as any))
-      return json({ ok: false, error: "Invalid gym_start" }, 422, cors);
-    if (!VALID.gym_budget.includes(gymBudget as any))
-      return json({ ok: false, error: "Invalid gym_budget" }, 422, cors);
+      return json({ ok: false, error: "invalid_gym_start" }, 422, cors);
+
+    // Scope-dependent fields: required only when their scope is selected
+    const hasEquipment = gymScope.includes("Equipment");
+    const hasFlooring = gymScope.includes("Flooring");
+    const hasMirrors = gymScope.includes("Mirrors");
+
+    if (hasEquipment && !VALID.gym_equipment_focus.includes(gymEquipFocus as any))
+      return json({ ok: false, error: "invalid_gym_equipment_focus" }, 422, cors);
+    if (hasFlooring && !VALID.gym_flooring.includes(gymFlooring as any))
+      return json({ ok: false, error: "invalid_gym_flooring" }, 422, cors);
+    if (hasMirrors && !VALID.gym_mirrors.includes(gymMirrors as any))
+      return json({ ok: false, error: "invalid_gym_mirrors" }, 422, cors);
+
+    // Budget: required only when Equipment is selected
+    if (hasEquipment) {
+      if (!VALID.gym_budget.includes(gymBudget as any))
+        return json({ ok: false, error: "invalid_budget" }, 422, cors);
+    } else if (gymBudget && !VALID.gym_budget.includes(gymBudget as any)) {
+      return json({ ok: false, error: "invalid_budget" }, 422, cors);
+    }
 
     // -- Custom field IDs (existing GHL fields) --
     // Existing fields — hardcoded IDs, with value translation
@@ -235,6 +247,9 @@ export default {
 
     const customFields: { id: string; field_value: string | string[] }[] = [];
     const addCF = (id: string, value: string | string[]) => {
+      // Never send empty values to GHL
+      if (value === "" || value == null) return;
+      if (Array.isArray(value) && value.length === 0) return;
       customFields.push({ id, field_value: value });
     };
 
@@ -242,11 +257,11 @@ export default {
     addCF(EXISTING_CF.gym_location, SPACE_MAP[gymSpace] || gymSpace);
     addCF(EXISTING_CF.whos_it_for, USERS_MAP[gymUsers] || gymUsers);
     addCF(EXISTING_CF.required_services, gymScope); // labels match
-    if (gymScope.includes("Equipment")) addCF(EXISTING_CF.focus, gymEquipFocus);
-    if (gymScope.includes("Flooring")) addCF(EXISTING_CF.flooring_thickness, FLOORING_MAP[gymFlooring] || gymFlooring);
-    if (gymScope.includes("Mirrors")) addCF(EXISTING_CF.mirrors, MIRRORS_MAP[gymMirrors] || gymMirrors);
-    addCF(EXISTING_CF.budget, gymBudget); // TEXT field, no translation
-    addCF(EXISTING_CF.timeframe, gymStart); // TEXT field, no translation
+    if (hasEquipment) addCF(EXISTING_CF.focus, gymEquipFocus);
+    if (hasFlooring) addCF(EXISTING_CF.flooring_thickness, FLOORING_MAP[gymFlooring] || gymFlooring);
+    if (hasMirrors) addCF(EXISTING_CF.mirrors, MIRRORS_MAP[gymMirrors] || gymMirrors);
+    addCF(EXISTING_CF.budget, gymBudget);
+    addCF(EXISTING_CF.timeframe, gymStart);
     addCF(EXISTING_CF.postcode, postcode);
 
     // Attribution (new fields, from GHL_CF_IDS env)
@@ -264,8 +279,8 @@ export default {
       "Multi-Step",
       "web-design-your-gym",
       `space-${slugify(gymSpace)}`,
-      `budget-${slugify(gymBudget)}`,
     ];
+    if (gymBudget) tags.push(`budget-${slugify(gymBudget)}`);
 
     // -- 1. Upsert contact --
     const contactBody = {
