@@ -7,4 +7,4 @@ workers_dev = true
 enabled = true
 
 [vars]
-ALLOWED_ORIGINS = "https://www.gymrepublik.co.uk,https://gymrepublik.co.uk,https://gym-republik.webflow.io,https://the-gym-republik---r4.webflow.io"
+ALLOWED_ORIGINS = "https://www.thegymrepublik.co.uk,https://thegymrepublik.co.uk,https://gym-republik.webflow.io,https://the-gym-republik---r4.webflow.io"
