@@ -1,10 +1,11 @@
-/*! Gym Republik — Design your gym form v1.0.9 */
+/*! Gym Republik — Design your gym form v1.0.10 */
 (function () {
   'use strict';
   var SCRIPT = document.currentScript;
   var cfg = function (k, d) { return (SCRIPT && SCRIPT.getAttribute('data-' + k)) || d; };
   var EP = cfg('endpoint', 'https://gym-republik-submit.matt-572.workers.dev/submit');
   var HOME = cfg('home', '/');
+  var THANKS = cfg('thanks', '/thank-you');
   var PHONE = cfg('phone', '0161 524 7618');
   var AUTO = cfg('auto', 'true') !== 'false';
   var EASE = 'cubic-bezier(.2,.7,0,1)';
@@ -376,9 +377,18 @@
     fetch(EP, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.ok) throw new Error(j.error || 'Failed'); }); })
       .then(function () {
-        var bud = (a.help || []).indexOf('Equipment') > -1 ? a.budget : ''; track('generate_lead', { gym_space: a.where, gym_budget: bud || 'n/a', value: MID[bud] || 0, currency: 'GBP' });
-        S.sending = false;
-        transition(function () { S.done = true; });
+        try { sessionStorage.setItem('gr_first_name', (f.first || '').trim()); } catch (e) {}
+        var bud = (a.help || []).indexOf('Equipment') > -1 ? a.budget : '';
+        var redirected = false;
+        function doRedirect() {
+          if (redirected) return; redirected = true;
+          try { window.location.assign(THANKS); } catch (e) { S.sending = false; transition(function () { S.done = true; }); }
+        }
+        track('generate_lead', {
+          gym_space: a.where, gym_budget: bud || 'n/a', value: MID[bud] || 0, currency: 'GBP',
+          eventCallback: doRedirect, eventTimeout: 1500
+        });
+        setTimeout(doRedirect, 1500);
       })
       .catch(function () {
         S.sending = false; btn.disabled = false; lab.textContent = 'Send my brief';
