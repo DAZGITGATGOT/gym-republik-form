@@ -1,7 +1,8 @@
 /**
- * Gym Republik — /submit Worker (Phase 1, no OTP)
+ * Gym Republik — Worker
  *
- * POST /submit → validate → GHL contact upsert + opportunity → { ok: true }
+ * POST /submit  → multi-step form → GHL contact + opportunity → { ok: true }
+ * POST /webflow → Webflow Contact form webhook → GHL contact + note + opportunity
  * Budget is optional unless Equipment is in gym_scope.
  */
 
@@ -12,6 +13,7 @@ export interface Env {
   GHL_STAGE_ID: string;
   GHL_CF_IDS: string; // JSON: { field_name: { id, fieldKey } }
   ALLOWED_ORIGINS: string; // comma-separated
+  WEBFLOW_WEBHOOK_SECRET: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,24 +127,198 @@ async function ghlPut(path: string, token: string, body: unknown) {
 }
 
 // ---------------------------------------------------------------------------
-// Main handler
+// Webflow webhook signature verification
 // ---------------------------------------------------------------------------
-export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
-    const allowedOrigins = env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
-    const origin = request.headers.get("Origin");
-    const cors = corsHeaders(origin, allowedOrigins);
+async function verifyWebflowSignature(
+  rawBody: string,
+  signature: string | null,
+  timestamp: string | null,
+  secret: string,
+): Promise<boolean> {
+  if (!signature || !timestamp) return false;
+  const age = Math.abs(Date.now() - Number(timestamp));
+  if (isNaN(age) || age > 5 * 60 * 1000) return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}:${rawBody}`));
+  const expected = Array.from(new Uint8Array(mac))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return expected === signature;
+}
 
-    // Preflight
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: cors });
-    }
+function jsonPlain(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
-    // Only POST /submit
-    const url = new URL(request.url);
-    if (url.pathname !== "/submit" || request.method !== "POST") {
-      return json({ ok: false, error: "Not found" }, 404, cors);
+// ---------------------------------------------------------------------------
+// Shared: search-or-create opportunity
+// ---------------------------------------------------------------------------
+async function upsertOpportunity(
+  env: Env,
+  contactId: string,
+  oppName: string,
+  monetaryValue: number,
+): Promise<void> {
+  const searchPath = `/opportunities/search?location_id=${env.GHL_LOCATION_ID}&contact_id=${contactId}&pipeline_id=${env.GHL_PIPELINE_ID}&status=open`;
+  const searchRes = await ghlGet(searchPath, env.GHL_TOKEN);
+  const existing =
+    searchRes.status < 400 && Array.isArray(searchRes.data?.opportunities)
+      ? searchRes.data.opportunities[0]
+      : null;
+
+  if (existing) {
+    const updateRes = await ghlPut(`/opportunities/${existing.id}`, env.GHL_TOKEN, {
+      pipelineStageId: env.GHL_STAGE_ID,
+      name: oppName,
+      monetaryValue,
+    });
+    if (updateRes.status >= 400) {
+      console.error("GHL opportunity update failed:", updateRes.status, JSON.stringify(updateRes.data));
     }
+  } else {
+    const oppRes = await ghlPost("/opportunities/", env.GHL_TOKEN, {
+      pipelineId: env.GHL_PIPELINE_ID,
+      pipelineStageId: env.GHL_STAGE_ID,
+      locationId: env.GHL_LOCATION_ID,
+      contactId,
+      name: oppName,
+      status: "open",
+      monetaryValue,
+    });
+    if (oppRes.status >= 400) {
+      console.error("GHL opportunity creation failed:", oppRes.status, JSON.stringify(oppRes.data));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST /webflow — Webflow Contact form webhook → GHL
+// ---------------------------------------------------------------------------
+async function handleWebflow(request: Request, env: Env): Promise<Response> {
+  const rawBody = await request.text();
+  const signature = request.headers.get("x-webflow-signature");
+  const timestamp = request.headers.get("x-webflow-timestamp");
+
+  if (!(await verifyWebflowSignature(rawBody, signature, timestamp, env.WEBFLOW_WEBHOOK_SECRET))) {
+    return jsonPlain({ ok: false, error: "invalid_signature" }, 401);
+  }
+
+  let webhook: any;
+  try {
+    webhook = JSON.parse(rawBody);
+  } catch {
+    return jsonPlain({ ok: false, error: "invalid_json" }, 400);
+  }
+
+  // Only handle form submissions; ack everything else
+  if (webhook.triggerType !== "form_submission") {
+    return jsonPlain({ ok: true }, 200);
+  }
+
+  const data = webhook.payload?.data;
+  if (!data) {
+    return jsonPlain({ ok: false, error: "missing_payload_data" }, 400);
+  }
+
+  // -- Parse fields --
+  const fullName = (data.Name || "").trim();
+  const spaceIdx = fullName.indexOf(" ");
+  const firstName = spaceIdx > 0 ? fullName.slice(0, spaceIdx) : fullName;
+  const lastName = spaceIdx > 0 ? fullName.slice(spaceIdx + 1).trim() : "";
+
+  const email = (data.Email || "").trim();
+  if (!email) {
+    return jsonPlain({ ok: false, error: "missing_email" }, 400);
+  }
+
+  const phoneRaw = (data.Phone || "").trim();
+  const phone = phoneRaw ? normaliseUKPhone(phoneRaw) : null;
+
+  const space = (data.Space || data["Field 2"] || "").trim();
+  const message = (data.Message || "").trim();
+
+  // -- Custom field IDs --
+  let cfIds: Record<string, { id: string; fieldKey: string }>;
+  try {
+    cfIds = JSON.parse(env.GHL_CF_IDS);
+  } catch {
+    console.error("GHL_CF_IDS parse error");
+    return jsonPlain({ ok: false, error: "server_config_error" }, 500);
+  }
+
+  const SPACE_MAP: Record<string, string> = {
+    "Single garage": "Single Garage",
+    "Double garage": "Double Garage",
+    "Garden room": "Garden Room",
+    "Spare room": "Spare Room",
+  };
+
+  const customFields: { id: string; field_value: string }[] = [];
+  if (space) {
+    customFields.push({ id: "yKUrUo3I3NpPKgFKEJS3", field_value: SPACE_MAP[space] || space });
+  }
+  if (message && cfIds.contact_message) {
+    customFields.push({ id: cfIds.contact_message.id, field_value: message });
+  }
+
+  // -- Tags --
+  const tags: string[] = ["contact-form"];
+  if (space) tags.push(`space-${slugify(space)}`);
+
+  // -- 1. Upsert contact --
+  const contactBody: Record<string, unknown> = {
+    locationId: env.GHL_LOCATION_ID,
+    firstName,
+    email,
+    source: "Website \u2013 Contact Form",
+    tags,
+  };
+  if (lastName) contactBody.lastName = lastName;
+  if (phone) contactBody.phone = phone;
+  if (customFields.length) contactBody.customFields = customFields;
+
+  const contactRes = await ghlPost("/contacts/upsert", env.GHL_TOKEN, contactBody);
+  if (contactRes.status >= 400) {
+    console.error("Webflow→GHL contact upsert failed:", contactRes.status, JSON.stringify(contactRes.data));
+    return jsonPlain({ ok: false, error: `ghl_contact_${contactRes.status}` }, 500);
+  }
+
+  const contactId = contactRes.data?.contact?.id;
+  if (!contactId) {
+    console.error("Webflow→GHL contact upsert: no contactId", JSON.stringify(contactRes.data));
+    return jsonPlain({ ok: false, error: "ghl_contact_no_id" }, 500);
+  }
+
+  // -- 2. Add contact note for the message --
+  if (message) {
+    const noteRes = await ghlPost(`/contacts/${contactId}/notes`, env.GHL_TOKEN, {
+      body: message,
+    });
+    if (noteRes.status >= 400) {
+      console.error("Webflow→GHL note failed:", noteRes.status, JSON.stringify(noteRes.data));
+    }
+  }
+
+  // -- 3. Create or update opportunity --
+  const oppName = `${firstName}${lastName ? " " + lastName : ""} \u2013 Contact form`;
+  await upsertOpportunity(env, contactId, oppName, 0);
+
+  return jsonPlain({ ok: true }, 200);
+}
+
+// ---------------------------------------------------------------------------
+// POST /submit — multi-step form → GHL
+// ---------------------------------------------------------------------------
+async function handleSubmit(request: Request, env: Env, cors: Record<string, string>): Promise<Response> {
 
     // Rate limiting note: Cloudflare's free tier doesn't include KV-based
     // rate limiting. For production, add rate limiting via Cloudflare WAF rules
@@ -333,44 +509,36 @@ export default {
     // -- 2. Create or update opportunity --
     const monetaryValue = BUDGET_MIDPOINTS[gymBudget] || 0;
     const oppName = `${firstName} ${lastName} \u2013 ${gymSpace}`;
-
-    // Search for an existing open opportunity for this contact in our pipeline
-    const searchPath = `/opportunities/search?location_id=${env.GHL_LOCATION_ID}&contact_id=${contactId}&pipeline_id=${env.GHL_PIPELINE_ID}&status=open`;
-    const searchRes = await ghlGet(searchPath, env.GHL_TOKEN);
-
-    const existingOpp = searchRes.status < 400 && Array.isArray(searchRes.data?.opportunities)
-      ? searchRes.data.opportunities[0]
-      : null;
-
-    if (existingOpp) {
-      // Update existing opportunity instead of creating a duplicate
-      const updateRes = await ghlPut(`/opportunities/${existingOpp.id}`, env.GHL_TOKEN, {
-        pipelineStageId: env.GHL_STAGE_ID,
-        name: oppName,
-        monetaryValue,
-      });
-      if (updateRes.status >= 400) {
-        console.error("GHL opportunity update failed:", updateRes.status, JSON.stringify(updateRes.data));
-      }
-    } else {
-      // Create new opportunity
-      const oppBody = {
-        pipelineId: env.GHL_PIPELINE_ID,
-        pipelineStageId: env.GHL_STAGE_ID,
-        locationId: env.GHL_LOCATION_ID,
-        contactId,
-        name: oppName,
-        status: "open",
-        monetaryValue,
-      };
-
-      const oppRes = await ghlPost("/opportunities/", env.GHL_TOKEN, oppBody);
-      if (oppRes.status >= 400) {
-        // Contact was saved — log but don't fail the user
-        console.error("GHL opportunity creation failed:", oppRes.status, JSON.stringify(oppRes.data));
-      }
-    }
+    await upsertOpportunity(env, contactId, oppName, monetaryValue);
 
     return json({ ok: true }, 200, cors);
+}
+
+// ---------------------------------------------------------------------------
+// Main handler — route dispatcher
+// ---------------------------------------------------------------------------
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // POST /webflow — server-to-server, no CORS needed
+    if (url.pathname === "/webflow" && request.method === "POST") {
+      return handleWebflow(request, env);
+    }
+
+    // Everything else uses CORS
+    const allowedOrigins = env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
+    const origin = request.headers.get("Origin");
+    const cors = corsHeaders(origin, allowedOrigins);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
+
+    if (url.pathname === "/submit" && request.method === "POST") {
+      return handleSubmit(request, env, cors);
+    }
+
+    return json({ ok: false, error: "Not found" }, 404, cors);
   },
 };
