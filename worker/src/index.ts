@@ -23,7 +23,7 @@ const VALID = {
   gym_scope: ["Equipment", "Flooring", "Mirrors"],
   gym_equipment_focus: ["Resistance", "Cardio", "Both"],
   gym_flooring: ["Standard padding", "Extra padding"],
-  gym_mirrors: ["Standard (1m \u00d7 1.8m)", "Floor to ceiling", "Bespoke"],
+  gym_mirrors: ["Standard", "Floor to ceiling", "Bespoke"],
   gym_start: ["ASAP", "Next month", "Next 3 months", "Next 6\u201312 months"],
   gym_budget: [
     "Up to \u00a37.5k",
@@ -91,19 +91,37 @@ function json(body: unknown, status: number, cors: Record<string, string>): Resp
 // ---------------------------------------------------------------------------
 const GHL_BASE = "https://services.leadconnectorhq.com";
 
-async function ghlPost(path: string, token: string, body: unknown): Promise<{ status: number; data: any }> {
-  const res = await fetch(`${GHL_BASE}${path}`, {
-    method: "POST",
+async function ghlRequest(
+  method: string,
+  path: string,
+  token: string,
+  body?: unknown,
+): Promise<{ status: number; data: any }> {
+  const opts: RequestInit = {
+    method,
     headers: {
       Authorization: `Bearer ${token}`,
       Version: "2021-07-28",
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(`${GHL_BASE}${path}`, opts);
+  const data = await res.json().catch(() => ({}));
   return { status: res.status, data };
+}
+
+async function ghlPost(path: string, token: string, body: unknown) {
+  return ghlRequest("POST", path, token, body);
+}
+
+async function ghlGet(path: string, token: string) {
+  return ghlRequest("GET", path, token);
+}
+
+async function ghlPut(path: string, token: string, body: unknown) {
+  return ghlRequest("PUT", path, token, body);
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +259,7 @@ export default {
       "Extra padding": "Extra",
     };
     const MIRRORS_MAP: Record<string, string> = {
-      "Standard (1m \u00d7 1.8m)": "Standard",
+      "Standard": "Standard",
       "Floor to ceiling": "Floor to Ceiling",
       "Bespoke": "Bespoke",
     };
@@ -302,32 +320,55 @@ export default {
 
     const contactRes = await ghlPost("/contacts/upsert", env.GHL_TOKEN, contactBody);
     if (contactRes.status >= 400) {
-      console.error("GHL contact upsert failed:", JSON.stringify(contactRes.data));
-      return json({ ok: false, error: "Failed to save contact" }, 502, cors);
+      console.error("GHL contact upsert failed:", contactRes.status, JSON.stringify(contactRes.data));
+      return json({ ok: false, error: `ghl_contact_${contactRes.status}` }, 502, cors);
     }
 
     const contactId = contactRes.data?.contact?.id;
     if (!contactId) {
       console.error("GHL contact upsert: no contactId", JSON.stringify(contactRes.data));
-      return json({ ok: false, error: "Failed to save contact" }, 502, cors);
+      return json({ ok: false, error: "ghl_contact_no_id" }, 502, cors);
     }
 
-    // -- 2. Create opportunity --
+    // -- 2. Create or update opportunity --
     const monetaryValue = BUDGET_MIDPOINTS[gymBudget] || 0;
-    const oppBody = {
-      pipelineId: env.GHL_PIPELINE_ID,
-      pipelineStageId: env.GHL_STAGE_ID,
-      locationId: env.GHL_LOCATION_ID,
-      contactId,
-      name: `${firstName} ${lastName} \u2013 ${gymSpace}`,
-      status: "open",
-      monetaryValue,
-    };
+    const oppName = `${firstName} ${lastName} \u2013 ${gymSpace}`;
 
-    const oppRes = await ghlPost("/opportunities/", env.GHL_TOKEN, oppBody);
-    if (oppRes.status >= 400) {
-      // Contact was saved — log but don't fail the user
-      console.error("GHL opportunity creation failed:", JSON.stringify(oppRes.data));
+    // Search for an existing open opportunity for this contact in our pipeline
+    const searchPath = `/opportunities/search?location_id=${env.GHL_LOCATION_ID}&contact_id=${contactId}&pipeline_id=${env.GHL_PIPELINE_ID}&status=open`;
+    const searchRes = await ghlGet(searchPath, env.GHL_TOKEN);
+
+    const existingOpp = searchRes.status < 400 && Array.isArray(searchRes.data?.opportunities)
+      ? searchRes.data.opportunities[0]
+      : null;
+
+    if (existingOpp) {
+      // Update existing opportunity instead of creating a duplicate
+      const updateRes = await ghlPut(`/opportunities/${existingOpp.id}`, env.GHL_TOKEN, {
+        pipelineStageId: env.GHL_STAGE_ID,
+        name: oppName,
+        monetaryValue,
+      });
+      if (updateRes.status >= 400) {
+        console.error("GHL opportunity update failed:", updateRes.status, JSON.stringify(updateRes.data));
+      }
+    } else {
+      // Create new opportunity
+      const oppBody = {
+        pipelineId: env.GHL_PIPELINE_ID,
+        pipelineStageId: env.GHL_STAGE_ID,
+        locationId: env.GHL_LOCATION_ID,
+        contactId,
+        name: oppName,
+        status: "open",
+        monetaryValue,
+      };
+
+      const oppRes = await ghlPost("/opportunities/", env.GHL_TOKEN, oppBody);
+      if (oppRes.status >= 400) {
+        // Contact was saved — log but don't fail the user
+        console.error("GHL opportunity creation failed:", oppRes.status, JSON.stringify(oppRes.data));
+      }
     }
 
     return json({ ok: true }, 200, cors);
