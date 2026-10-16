@@ -13,7 +13,7 @@ export interface Env {
   GHL_STAGE_ID: string;
   GHL_CF_IDS: string; // JSON: { field_name: { id, fieldKey } }
   ALLOWED_ORIGINS: string; // comma-separated
-  WEBFLOW_WEBHOOK_SECRET: string;
+  WEBFLOW_WEBHOOK_KEY: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,32 +126,6 @@ async function ghlPut(path: string, token: string, body: unknown) {
   return ghlRequest("PUT", path, token, body);
 }
 
-// ---------------------------------------------------------------------------
-// Webflow webhook signature verification
-// ---------------------------------------------------------------------------
-async function verifyWebflowSignature(
-  rawBody: string,
-  signature: string | null,
-  timestamp: string | null,
-  secret: string,
-): Promise<boolean> {
-  if (!signature || !timestamp) return false;
-  const age = Math.abs(Date.now() - Number(timestamp));
-  if (isNaN(age) || age > 5 * 60 * 1000) return false;
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}:${rawBody}`));
-  const expected = Array.from(new Uint8Array(mac))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  return expected === signature;
-}
-
 function jsonPlain(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -203,18 +177,15 @@ async function upsertOpportunity(
 // ---------------------------------------------------------------------------
 // POST /webflow — Webflow Contact form webhook → GHL
 // ---------------------------------------------------------------------------
-async function handleWebflow(request: Request, env: Env): Promise<Response> {
-  const rawBody = await request.text();
-  const signature = request.headers.get("x-webflow-signature");
-  const timestamp = request.headers.get("x-webflow-timestamp");
-
-  if (!(await verifyWebflowSignature(rawBody, signature, timestamp, env.WEBFLOW_WEBHOOK_SECRET))) {
-    return jsonPlain({ ok: false, error: "invalid_signature" }, 401);
+async function handleWebflow(request: Request, url: URL, env: Env): Promise<Response> {
+  // Authenticate via secret URL key
+  if (url.searchParams.get("key") !== env.WEBFLOW_WEBHOOK_KEY) {
+    return jsonPlain({ ok: false, error: "unauthorized" }, 401);
   }
 
   let webhook: any;
   try {
-    webhook = JSON.parse(rawBody);
+    webhook = await request.json();
   } catch {
     return jsonPlain({ ok: false, error: "invalid_json" }, 400);
   }
@@ -523,7 +494,7 @@ export default {
 
     // POST /webflow — server-to-server, no CORS needed
     if (url.pathname === "/webflow" && request.method === "POST") {
-      return handleWebflow(request, env);
+      return handleWebflow(request, url, env);
     }
 
     // Everything else uses CORS
