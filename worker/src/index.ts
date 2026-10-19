@@ -27,20 +27,7 @@ const VALID = {
   gym_flooring: ["Standard padding", "Extra padding"],
   gym_mirrors: ["Standard", "Floor to ceiling", "Bespoke"],
   gym_start: ["ASAP", "Next month", "Next 3 months", "Next 6\u201312 months"],
-  gym_budget: [
-    "Up to \u00a37.5k",
-    "\u00a37.5k to \u00a315k",
-    "\u00a315k to \u00a325k",
-    "\u00a325k and above",
-  ],
 } as const;
-
-const BUDGET_MIDPOINTS: Record<string, number> = {
-  "Up to \u00a37.5k": 3750,
-  "\u00a37.5k to \u00a315k": 11250,
-  "\u00a315k to \u00a325k": 20000,
-  "\u00a325k and above": 30000,
-};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -336,7 +323,6 @@ async function handleSubmit(request: Request, env: Env, cors: Record<string, str
     const gymFlooring = str("gym_flooring");
     const gymMirrors = str("gym_mirrors");
     const gymStart = str("gym_start");
-    const gymBudget = str("gym_budget");
 
     // Validate option values
     if (!VALID.gym_space.includes(gymSpace as any))
@@ -360,14 +346,6 @@ async function handleSubmit(request: Request, env: Env, cors: Record<string, str
     if (hasMirrors && !VALID.gym_mirrors.includes(gymMirrors as any))
       return json({ ok: false, error: "invalid_gym_mirrors" }, 422, cors);
 
-    // Budget: required only when Equipment is selected
-    if (hasEquipment) {
-      if (!VALID.gym_budget.includes(gymBudget as any))
-        return json({ ok: false, error: "invalid_budget" }, 422, cors);
-    } else if (gymBudget && !VALID.gym_budget.includes(gymBudget as any)) {
-      return json({ ok: false, error: "invalid_budget" }, 422, cors);
-    }
-
     // -- Custom field IDs (existing GHL fields) --
     // Existing fields — hardcoded IDs, with value translation
     const EXISTING_CF: Record<string, string> = {
@@ -377,7 +355,6 @@ async function handleSubmit(request: Request, env: Env, cors: Record<string, str
       focus:              "3jCboCU8X6sqftFNf8Po",
       flooring_thickness: "w0RbpJzZBFqJoT4hAKDo",
       mirrors:            "qEHyPHMNoqv9lntxLNmR",
-      budget:             "ApS74uW5yIwJMr6u5744",
       timeframe:          "AxjlhCV3r3I1ZN5q7MLE",
       postcode:           "3wqPN9TWzzgFIC5t1Lr6",
     };
@@ -426,7 +403,6 @@ async function handleSubmit(request: Request, env: Env, cors: Record<string, str
     if (hasEquipment) addCF(EXISTING_CF.focus, gymEquipFocus);
     if (hasFlooring) addCF(EXISTING_CF.flooring_thickness, FLOORING_MAP[gymFlooring] || gymFlooring);
     if (hasMirrors) addCF(EXISTING_CF.mirrors, MIRRORS_MAP[gymMirrors] || gymMirrors);
-    addCF(EXISTING_CF.budget, gymBudget);
     addCF(EXISTING_CF.timeframe, gymStart);
     addCF(EXISTING_CF.postcode, postcode);
 
@@ -446,7 +422,6 @@ async function handleSubmit(request: Request, env: Env, cors: Record<string, str
       "web-design-your-gym",
       `space-${slugify(gymSpace)}`,
     ];
-    if (gymBudget) tags.push(`budget-${slugify(gymBudget)}`);
 
     // -- 1. Upsert contact --
     const contactBody = {
@@ -478,9 +453,8 @@ async function handleSubmit(request: Request, env: Env, cors: Record<string, str
     }
 
     // -- 2. Create or update opportunity --
-    const monetaryValue = BUDGET_MIDPOINTS[gymBudget] || 0;
     const oppName = `${firstName} ${lastName} \u2013 ${gymSpace}`;
-    await upsertOpportunity(env, contactId, oppName, monetaryValue);
+    await upsertOpportunity(env, contactId, oppName, 0);
 
     return json({ ok: true }, 200, cors);
 }
