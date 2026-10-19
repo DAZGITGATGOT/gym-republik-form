@@ -207,7 +207,7 @@
           return '<label class="grf-field" data-k="' + f[0] + '"><span class="grf-flab"><span class="grf-dash"></span><span>' + f[1] + '</span><span class="grf-ok"></span></span>' +
             '<input type="' + f[2] + '" name="' + (f[0] === 'phone2' ? 'grf-verify-' + Math.random().toString(36).slice(2, 7) : f[0]) + '"' + (f[0] === 'phone2' ? ' data-lpignore="true" data-1p-ignore data-form-type="other"' : '') + ' autocomplete="' + f[3] + '" placeholder="' + f[4] + '" value="' + esc(S.f[f[0]] || '') + '"' + (f[2] === 'tel' ? ' inputmode="tel"' : '') + '><span class="grf-err"></span></label>';
         }).join('') +
-        '<input class="grf-hp" type="text" name="company" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        '<div class="grf-hp" aria-hidden="true"><input type="text" name="grf_x' + Math.random().toString(36).slice(2, 8) + '" tabindex="-1" autocomplete="new-password" data-lpignore="true" data-1p-ignore="" data-bwignore="" data-form-type="other" readonly onfocus="this.removeAttribute(\'readonly\')"></div>' +
         '<span class="grf-send-err" role="alert"></span>' +
         '<button type="submit" class="grf-btn grf-btn-teal grf-submit"><span class="grf-fill"></span><span class="grf-submit-l">Send my brief</span><span>→</span></button>' +
         '<span class="grf-small">Free and no obligation. We only use your details to prepare your quote.</span></form></div>';
@@ -367,7 +367,7 @@
       gym_start: a.when || '',
       utm_source: attr.utm_source || '', utm_medium: attr.utm_medium || '', utm_campaign: attr.utm_campaign || '', gclid: attr.gclid || '',
       landing_page: attr.landing_page || location.pathname,
-      hp: (form.querySelector('.grf-hp') || {}).value || '', t: Date.now() - t0
+      hp: ((form.querySelector('.grf-hp input') || {}).value || '').replace(/^\s+|\s+$/g, ''), t: Date.now() - t0
     };
     var btn = form.querySelector('.grf-submit'), lab = form.querySelector('.grf-submit-l'), errEl = form.querySelector('.grf-send-err');
     S.sending = true; btn.disabled = true; lab.textContent = 'Sending…'; errEl.textContent = '';
